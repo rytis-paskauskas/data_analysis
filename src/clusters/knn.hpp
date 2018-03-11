@@ -1,17 +1,15 @@
+/**
+ * @file   knn.hpp
+ * @author  <rytis@casamia>
+ * @date   Sun Mar 11 17:16:07 2018
+ * 
+ * @brief  
+ * 
+ * 
+ */
 
 #ifndef knn_hpp_defined
 #define knn_hpp_defined
-
-//#include <string>
-//#include <vector>
-// #include <queue>                // priority queue
-// #include <iostream>             // cout,cerr,...
-// #include <fstream>              // ifstream
-// #include <boost/graph/adjacency_list.hpp>
-// #include <boost/graph/graph_traits.hpp>
-// #include <boost/graph/dijkstra_shortest_paths.hpp>
-// #include <boost/graph/depth_first_search.hpp>
-// #include <boost/lexical_cast.hpp>
 
 #include <algorithm>            // transform,nth_element
 #include <iterator>             // iterator_traits
@@ -29,12 +27,12 @@ namespace clusters {
 
   /** 
    * std algo-like \f$K\f$-nearest neighbor density estimator
-   * 
    * @param[in] d_beg iterator
    * @param[in] d_end iterator
    * @param[in,out] m_beg iterator
    * @param[in] volume function
    * @param[in] Knn 
+   * @todo How about we allow the data to be circular?
    */
   template<class Iterator1, class Iterator2, class VolumeFunction>
   void knn_density(Iterator1 d_beg, Iterator1 d_end, Iterator2 m_beg, VolumeFunction volume, int const Knn = 1) {
@@ -54,12 +52,24 @@ namespace clusters {
   }
 
 
-
-    // let's build a MST starting from the give vector<double> data:
-    // assumptions: indexed by size_t
-    // so that also the result can be indexed by size_t:
-    // USE: Container::value_type , where container=vector<double>
-    //
+  /** 
+   * Spanning tree based on the k-th nearest neighbor density estimation
+   * 
+   * Let's build a MST starting from given data. 
+   * Assumptions: the range of data can be traversed using random
+   * iterator access. Therefore, it could be also indexed by an
+   * integer. The resulting graph should also be indexable by size_t.
+   * 
+   * We are assuming that the graph has both vertex map convertible to size_t and an edge map convertible to size_t.
+   * The default return type can be just copied from the third template argument. 
+   * @param[in] d_beg range iterator to data. It could be a pointer, a std::vector<T>::iterator, etc... we are quite flexible!
+   * @param[in] d_end range iterator to data. Same as above.
+   * @param[in] vm_beg Iterator to vertex weights. The Iterator type must be convertible to floating number (real_type). The underlying data container should be large enough to hold at least as many items as are in the range of data.
+   * @param[in] em_beg Iterator to edge weights. Same as above, with the exception of the capacity: we only require it to hold one less items than in the data range.  
+   * @param[out] G The resulting graph. Note that G must be a tree, with all the consequences (such as, n. of edges = n. of nodes -1, etc.) G can be initialized and non-pure, we'll clean it before using it. On the outcome, the edges will be randomly ordered. 
+   * @param[in] volume Tells what is the volume of a ball with a center at the reference point and a boundary touching the second point. 
+   * @param[in] Knn the "k" in the k-th nearest neighbor.
+   */
   template
   <class Iterator1, class Iterator2,
    class graph_type = typename boost::adjacency_list<
@@ -96,7 +106,7 @@ namespace clusters {
       mst_marker(IndexVertexMap const& p, BoolEdgeMap& m, vertex_descriptor const u) : m_pred(p), m_mark(m), start(u) {}
       /*
        * Mark maximum spanning tree edges.
-       * @note According to boost description of dijkstra visitor, at examine_vertex event, the
+       * note According to boost description of dijkstra visitor, at examine_vertex event, the
        * dijkstra algorithm knows that (p[u],u) a MST edge.
        */
       void examine_vertex(const vertex_descriptor& v, const graph_type&g) const {
@@ -165,14 +175,6 @@ namespace clusters {
       real_type v = std::min({mass_map[s],mass_map[t],scale/volume(data_map[s],data_map[t])});
       boost::put(edge_weight_map,*ee.first,v);
     }
-
-    // for(auto ee=boost::edges(G);ee.first!=ee.second;ee.first++) {
-    //   auto s=boost::source(*ee.first,G);
-    //   auto t=boost::target(*ee.first,G);
-    //   auto v=boost::get(edge_weight_map,*ee.first);
-    //   //      std::cout << "edge(" << s << "," << t << ")=" << v << "\n";
-    // }
-
     
     auto start_vertex = *(boost::vertices)(G).first;
     boost::dijkstra_shortest_paths
@@ -197,7 +199,6 @@ namespace clusters {
        0
        , mst_marker(predecessor_map,mst_marker_map,start_vertex)
        );
-    
     // erase edges that aren't marked by mst_edge_map
     {
       auto ee = boost::edges(G);
@@ -207,17 +208,26 @@ namespace clusters {
         else *em++ = edge_weight_map[*ee.first];
       }
     }
-
     // relabel edges:
     {
       size_t eid=0;
       for(auto ee=boost::edges(G);ee.first!=ee.second;ee.first++,eid++) boost::put(edge_index_map,*ee.first,eid);
     }
     assert((em==em_beg+boost::num_edges(G)) && (boost::num_edges(G)+1==boost::num_vertices(G)));
-  }
+  } // done!
   
-  
-  // this one is boost::property_map-like.
+  /** 
+   * knn_density variant which can be called with boost::property_map and similar types.
+   * 
+   * @param[in] d Any property map that maps to data
+   * @param[in] m Any property map that can be converted to a real type. 
+   * @param[in] range The range of iterators. The iterators can be
+   * arbitrary keys, but they must be convertible to at least forward
+   * iterators. A typical simplest example would be to use
+   * boost::counting_iterator.
+   * @param[in] volume Volume of a ball with the reference point in center and the referred point on the boundary.
+   * @param[in] Knn the "k" in k-nearest neighbors.
+   */
   template<class DataMap, class MassMap, class KeyIterator, class VolumeFunction>
   void knn_density_map(DataMap d, MassMap m, typename std::pair<KeyIterator,KeyIterator> range, VolumeFunction volume, int Knn)
   {
@@ -235,8 +245,5 @@ namespace clusters {
     }
   }
 
-  
-
-
-}      // namespace cluster
-#endif  // cluster_graph_hpp_defined
+}      // namespace clusters
+#endif // knn_hpp_defined
