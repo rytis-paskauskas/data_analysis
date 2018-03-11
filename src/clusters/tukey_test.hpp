@@ -62,10 +62,27 @@ almost_equal(T x, T y, int ulp)
     || std::abs(x-y) < std::numeric_limits<T>::min();
 }
 
-// skip must be at least 5, because p_square_quantile requires at
-// least 5 data to be stored before it can compute anything. It may
-// require more data actually. For this reason, we monitor the
-// quantiles and may force additional data to be skipped.
+/** 
+ * Tukey test that returns extreme values' map to data iterators.
+ * See tukey_test_example.cc for an example.
+ * @note Skip must be at least 5 but possibly even more because of how
+ * p_square_quantile is constructed. I believe it does not initialize
+ * unless at least 5 data are accumulated. It may require more data
+ * actually. For this reason, we monitor the quantiles and may force
+ * additional data to be skipped. This is a hardened version.
+ * @param[in] first data range
+ * @param[in] last  data range
+ * @param[in] value this tells us how to extract a number from the
+ * iterator.
+ * @param[in] farout This is the parameter of the Tukey test. For
+ * example, if farout=3, data that are three times the interquantile
+ * range are considered as outliers.
+ * @param[in] skip how many initial data to skip. Note that skipping
+ * more data than specified can be imposed if the quantiles aren't
+ * correctly initialized.
+ * @return A map to that is of the form [extreme value] -> [data
+ * iterator]. This function returns an empty map if first==last
+ */
 template <
   typename K
   , class Iterator
